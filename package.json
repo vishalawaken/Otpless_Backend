@@ -2,6 +2,7 @@
   "name": "otpless_backend",
   "version": "1.0.0",
   "description": "OTPless backend server",
+  "type": "module",
   "main": "server.js",
   "dependencies": {
     "accepts": "^2.0.0",
