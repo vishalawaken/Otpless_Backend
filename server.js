@@ -3,6 +3,7 @@ import express from 'express';
 import fetch from 'node-fetch';
 import cors from 'cors';
 import crypto from 'crypto';
+import { body, validationResult } from 'express-validator';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -11,6 +12,8 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(cors({
   origin: process.env.SHOPIFY_STORE_URL || '*',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
 }));
 
@@ -27,18 +30,34 @@ const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN; // Private app ac
 
 console.log("✅ server.js has started");
 
+// Validation middleware
+const validateRequest = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ 
+      error: 'Validation failed', 
+      details: errors.array() 
+    });
+  }
+  next();
+};
+
 app.get('/', (req, res) => {
   console.log("🌐 GET / was hit");
   res.send('🎉 Hello from your OTPless backend server!');
 });
 
-// Verify OTPless token
-app.post('/api/auth/otpless', async (req, res) => {
+// Verify OTPless token with validation
+app.post('/api/auth/otpless', [
+  body('token')
+    .notEmpty()
+    .withMessage('Token is required')
+    .trim()
+    .isString()
+    .withMessage('Token must be a string'),
+  validateRequest
+], async (req, res) => {
   const { token } = req.body;
-
-  if (!token) {
-    return res.status(400).json({ error: 'Token missing from request' });
-  }
 
   try {
     // Verify token with OTPless API
@@ -74,13 +93,23 @@ app.post('/api/auth/otpless', async (req, res) => {
   }
 });
 
-// Create or get Shopify customer
-app.post('/api/auth/shopify/customer', async (req, res) => {
+// Create or get Shopify customer with validation
+app.post('/api/auth/shopify/customer', [
+  body('email')
+    .notEmpty()
+    .withMessage('Email is required')
+    .trim()
+    .isEmail()
+    .withMessage('Invalid email format'),
+  body('token')
+    .notEmpty()
+    .withMessage('Token is required')
+    .trim()
+    .isString()
+    .withMessage('Token must be a string'),
+  validateRequest
+], async (req, res) => {
   const { email, token } = req.body;
-  
-  if (!email || !token) {
-    return res.status(400).json({ error: 'Email and token are required' });
-  }
   
   try {
     // Verify the token again for security
@@ -173,8 +202,6 @@ app.post('/api/auth/shopify/customer', async (req, res) => {
         customer_id: customer.id,
         email: customer.email,
         password_created: true,
-        // We can't return the actual password for security reasons
-        // The front-end will need to handle login differently
       });
     }
     
